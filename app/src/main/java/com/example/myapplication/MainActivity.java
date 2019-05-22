@@ -26,16 +26,39 @@ import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 
+import android.os.Bundle;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+
 public class MainActivity extends AppCompatActivity {
 
     FusedLocationProviderClient client;
+    Button botao;
+    TextView textView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         client = LocationServices.getFusedLocationProviderClient(this);
+
+        //View
+        botao = (Button) findViewById(R.id.botao);
+        textView = (TextView)findViewById(R.id.textView);
+
+        final double latPuc = -19.9333371;
+        final double longPuc = 43.9371446;
+
+        botao.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                 Location location = findLocation();
+                 double distancia = haversine(latPuc, longPuc, location.getLatitude(), location.getLongitude());
+                textView.setText("Você está a " + distancia + " metros da puc.");
+            }
+        });
     }
 
     @Override
@@ -47,14 +70,15 @@ public class MainActivity extends AppCompatActivity {
             case ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED:
             case ConnectionResult.SERVICE_DISABLED:
                 Log.d("Teste", "show dialog");
-            break;
+                break;
             case ConnectionResult.SUCCESS:
                 Log.d("Teste", "Google Play Services up-to-date");
-            break;
+                break;
         }
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
         }
+
         client.getLastLocation()
                 .addOnSuccessListener(new OnSuccessListener<Location>() {
                     @Override
@@ -73,17 +97,18 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        // Configuração dos param p bateria
+        // ----------------------------------------------
+        // Configuração dos parametros para a bateria
         LocationRequest locationRequest = LocationRequest.create();
-        // qual o intervalo de vezes q precisa comsumir a posicao do user em miliss
+        // Qual o intervalo de vezes irá comsumir a posicao do usuário em milissegundos
         locationRequest.setInterval(15 ^ 1000); // a cada 15 seg
-        // mesma funcao do de cima, é usado para contextos em que há mais de um app usando o servico
+        // Mesma funcao da de cima. É usado para contextos em que há mais de um aplicativo usando o servico
         locationRequest.setFastestInterval(5 ^ 1000);
-        // balanco entre a precisao lozalizao e bateria
-        // diferente do PRiority_high_power, low, no
+        // Balanco entre a precisão da localização e a bateria. Diferente do Priority_high_power, Priority_low_power Priority_no_power
         locationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+        // ----------------------------------------------
 
-        // pega e valida a localizacao pelo wifi
+        // Acessa e valida a localizacao pelo Wifi
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
                 .addLocationRequest(locationRequest);
 
@@ -95,19 +120,20 @@ public class MainActivity extends AppCompatActivity {
                         Log.i("Teste", locationSettingsResponse.getLocationSettingsStates().isNetworkLocationPresent() + " ");
                     }
                 }).addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        if( e instanceof ResolvableApiException){
-                            try {
-                                ResolvableApiException resolvable = (ResolvableApiException) e;
-                                resolvable.startResolutionForResult(MainActivity.this, 10);
-                            } catch (IntentSender.SendIntentException e1){
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                if( e instanceof ResolvableApiException){
+                    try {
+                        ResolvableApiException resolvable = (ResolvableApiException) e;
+                        resolvable.startResolutionForResult(MainActivity.this, 10);
+                    } catch (IntentSender.SendIntentException e1){
 
-                            }
-                        }
                     }
-                });
-        // retorno - deve chamar a AWS nesse metodo
+                }
+            }
+        });
+
+        // Retorno - chamar a AWS nesse metodo
         LocationCallback locationCallback = new LocationCallback(){
             @Override
             public void onLocationResult(LocationResult locationResult) {
@@ -126,7 +152,58 @@ public class MainActivity extends AppCompatActivity {
                 Log.i("Teste", locationAvailability.isLocationAvailable() + " ");
             }
         };
-        // pega as localizacoes a cada x segundos (foi setado no setinterval)
+        // acessa as localizacoes a cada x segundos (foi setado no setInterval)
         client.requestLocationUpdates(locationRequest, locationCallback, null);
     }
+
+    // Função para ser chamada ao clicar no botão
+    protected Location findLocation(){
+        int errorCode =  GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(this);
+        switch (errorCode){
+            case ConnectionResult.SERVICE_MISSING:
+            case ConnectionResult.SERVICE_VERSION_UPDATE_REQUIRED:
+            case ConnectionResult.SERVICE_DISABLED:
+                Log.d("Teste", "show dialog");
+                break;
+            case ConnectionResult.SUCCESS:
+                Log.d("Teste", "Google Play Services up-to-date");
+                break;
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED){
+        }
+
+        client.getLastLocation()
+                .addOnSuccessListener(new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location location) {
+                        if(location != null){
+                            Log.i("Teste", location.getLatitude() + " " + location.getLongitude());
+                        }else{
+                            Log.i("Teste", "null");
+                        }
+                    }
+                })
+                .addOnFailureListener(new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+
+                    }
+                });
+        return location;
+    }
+
+    // Fórmula de Haversine
+    private static double haversine(double lat1, double lon1, double lat2, double lon2){
+        final double R = 6372.8; // In kilometers
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        lat1 = Math.toRadians(lat1);
+        lat2 = Math.toRadians(lat2);
+
+        double a = Math.pow(Math.sin(dLat / 2),2) + Math.pow(Math.sin(dLon / 2),2) * Math.cos(lat1) * Math.cos(lat2);
+        double c = 2 * Math.asin(Math.sqrt(a));
+        return R * c;
+    }
+
 }
